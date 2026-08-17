@@ -17,7 +17,6 @@ from rich.text import Text
 from rich.rule import Rule
 from rich.panel import Panel
 from rich.live import Live
-from rich.align import Align
 from rich import box
 
 import psutil
@@ -25,6 +24,8 @@ import psutil
 THINKCENTRE_HOST = "server"      # ThinkCentre M715q, nazwa z `tailscale status`
 ORANGEPI_HOST = "orangepipc2"    # Orange Pi PC2, nazwa z `tailscale status`
 YOGA_HOST = "yoga11e"            # Lenovo Yoga 11e, nazwa z `tailscale status`
+
+DOCKER_ROWS = 3  # ile wierszy stale zarezerwowanych na status kontenerow
 
 _host_check_cache = {}
 
@@ -55,6 +56,7 @@ CYAN = "bold cyan"
 YELLOW = "bold yellow"
 MAGENTA = "bold magenta"
 BLUE = "bold blue"
+DIM = "dim white"
 
 # Uwaga na znaki: fbcon na tym ekranie renderuje klasyczny font VGA/codepage-437,
 # nie pelny Unicode jak terminal pod SSH. Trzymamy sie wylacznie glifow z CP437
@@ -83,14 +85,6 @@ def bar(pct, width=10, filled_char="|", empty_char="-"):
     return "[" + filled_char * filled + empty_char * (width - filled) + "]"
 
 
-def color_swatch_row():
-    blocks = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
-    t = Text()
-    for c in blocks:
-        t.append("███", style=c)
-    return Align.center(t)
-
-
 def run(cmd):
     try:
         return subprocess.check_output(cmd, shell=True, text=True,
@@ -117,6 +111,48 @@ def get_pkg_count():
     return out or "?"
 
 
+def get_docker_containers():
+    """Lista (nazwa, status) ze wszystkich kontenerow (dzialajace i zatrzymane).
+    Pusta lista jesli docker nie jest zainstalowany / dostepny bez sudo."""
+    out = run("docker ps -a --format '{{.Names}}\t{{.Status}}' 2>/dev/null")
+    if not out:
+        return []
+    rows = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 2:
+            rows.append((parts[0], parts[1]))
+    return rows
+
+
+def build_docker_lines():
+    """Zawsze zwraca dokladnie DOCKER_ROWS wierszy - stale miejsce w layoucie.
+    Jesli kontenerow jest wiecej niz sie miesci, ostatni wiersz to '+N more',
+    zeby obciecie bylo widoczne, a nie ciche."""
+    containers = get_docker_containers()
+    if not containers:
+        rows = [Text(" (brak kontenerow)", style=DIM)]
+        rows += [Text("")] * (DOCKER_ROWS - len(rows))
+        return rows
+
+    show_n = DOCKER_ROWS if len(containers) <= DOCKER_ROWS else DOCKER_ROWS - 1
+    rows = []
+    for name, status in containers[:show_n]:
+        running = status.lower().startswith("up")
+        style = "green" if running else "bold red"
+        row = Text(" • ", style=style)
+        row.append(f"{name[:13]:<13} ", style=BLUE)
+        row.append(status[:18], style=style)
+        rows.append(row)
+
+    remaining = len(containers) - show_n
+    if remaining > 0:
+        rows.append(Text(f" +{remaining} more (docker ps -a)", style=DIM))
+    while len(rows) < DOCKER_ROWS:
+        rows.append(Text(""))
+    return rows
+
+
 _last_net = psutil.net_io_counters()
 _net_hist = deque([0] * 20, maxlen=20)
 
@@ -132,7 +168,7 @@ def build_frame():
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
     disk = psutil.disk_usage("/")
-    load1, load5, load15 = psutil.getloadavg()
+    load1, _, _ = psutil.getloadavg()
 
     uptime_s = time.time() - psutil.boot_time()
     h, m = int(uptime_s // 3600), int((uptime_s % 3600) // 60)
@@ -151,29 +187,27 @@ def build_frame():
     lines.append(Rule(style=DIM_GREEN))
 
     lines.append(Text(f"{get_os_release()}", style=DEBIAN_RED))
-    lines.append(Text(f"{os.uname().release}", style=CYAN))
     lines.append(Text.assemble(
         ("Up ", CYAN), (f"{h}h{m:02d}m", BODY),
         ("   Pkgs ", CYAN), (f"{get_pkg_count()}", BODY),
     ))
 
     core_str = " ".join(f"{i+1}:{pct:>3.0f}%" for i, pct in enumerate(per_cpu))
-    lines.append(Text(f"CPU {core_str}", style=threshold_color(max(per_cpu, default=0))))
-    lines.append(Text(
-        f"Load {load1:.2f} {load5:.2f} {load15:.2f}", style=CYAN,
+    lines.append(Text.assemble(
+        (f"CPU {core_str}  ", threshold_color(max(per_cpu, default=0))),
+        (f"Ld {load1:.2f}", CYAN),
     ))
 
     lines.append(Text.assemble(
-        ("Mem  ", BODY), (bar(mem.percent, 24), threshold_color(mem.percent)),
+        ("Mem ", BODY), (bar(mem.percent, 14), threshold_color(mem.percent)),
         (f" {mem.percent:>3.0f}%", threshold_color(mem.percent)),
-    ))
-    lines.append(Text.assemble(
-        ("Swap ", BODY), (bar(swap.percent, 24), threshold_color(swap.percent, 20, 60)),
+        ("  Swap ", BODY), (bar(swap.percent, 8), threshold_color(swap.percent, 20, 60)),
         (f" {swap.percent:>3.0f}%", threshold_color(swap.percent, 20, 60)),
     ))
     lines.append(Text.assemble(
         ("Disk ", BODY), (bar(disk.percent, 24), threshold_color(disk.percent)),
         (f" {disk.percent:>3.0f}%", threshold_color(disk.percent)),
+        (f"  {disk.used/1e9:.1f}/{disk.total/1e9:.0f}G", BODY),
     ))
     lines.append(Text.assemble(
         ("Net  ", BLUE), (hist_bar(_net_hist), CYAN),
@@ -181,7 +215,9 @@ def build_frame():
     ))
 
     lines.append(Rule(style=DIM_GREEN))
-    lines.append(color_swatch_row())
+    lines.append(Text(" DOCKER", style=MAGENTA))
+    lines.extend(build_docker_lines())
+
     lines.append(Text(" MESH", style=MAGENTA))
     for host in (THINKCENTRE_HOST, ORANGEPI_HOST, YOGA_HOST):
         text, style = check_host(host)
