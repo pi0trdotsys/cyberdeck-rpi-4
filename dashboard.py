@@ -16,6 +16,7 @@ from rich.console import Console, Group
 from rich.text import Text
 from rich.rule import Rule
 from rich.panel import Panel
+from rich.table import Table
 from rich.live import Live
 from rich import box
 
@@ -69,6 +70,19 @@ def hist_bar(values):
     vmax = max(values) or 1
     idx_max = len(HIST_CHARS) - 1
     return "".join(HIST_CHARS[min(int((v / vmax) * idx_max), idx_max)] for v in values)
+
+
+# Mala pixel-artowa malina (oryginalna, uproszczona grafika blokowa - nie kopia
+# logo Raspberry Pi) - listek + jagoda, wylacznie znak "█" z CP437, kolorowany.
+# 6 wierszy, zeby zestawic 1:1 z 6 liniami statystyk obok (bez kosztu wierszy).
+RASPBERRY_ART = [
+    (" ▓▓  ▓▓ ", "green"),
+    (" ██████ ", "green"),
+    ("██  ██  ", "bold red"),
+    ("████████", "red"),
+    (" ██  ██ ", "bold red"),
+    ("████████", "red"),
+]
 
 
 def threshold_color(pct, low=40, high=75):
@@ -154,7 +168,7 @@ def build_docker_lines():
 
 
 _last_net = psutil.net_io_counters()
-_net_hist = deque([0] * 20, maxlen=20)
+_net_hist = deque([0] * 10, maxlen=10)  # skrocone z 20 - zwolnione miejsce zajela ikona malinki obok
 
 
 def build_frame():
@@ -186,33 +200,44 @@ def build_frame():
     lines.append(header)
     lines.append(Rule(style=DIM_GREEN))
 
-    lines.append(Text(f"{get_os_release()}", style=DEBIAN_RED))
-    lines.append(Text.assemble(
-        ("Up ", CYAN), (f"{h}h{m:02d}m", BODY),
-        ("   Pkgs ", CYAN), (f"{get_pkg_count()}", BODY),
-    ))
-
     core_str = " ".join(f"{i+1}:{pct:>3.0f}%" for i, pct in enumerate(per_cpu))
-    lines.append(Text.assemble(
-        (f"CPU {core_str}  ", threshold_color(max(per_cpu, default=0))),
-        (f"Ld {load1:.2f}", CYAN),
-    ))
 
-    lines.append(Text.assemble(
-        ("Mem ", BODY), (bar(mem.percent, 14), threshold_color(mem.percent)),
-        (f" {mem.percent:>3.0f}%", threshold_color(mem.percent)),
-        ("  Swap ", BODY), (bar(swap.percent, 8), threshold_color(swap.percent, 20, 60)),
-        (f" {swap.percent:>3.0f}%", threshold_color(swap.percent, 20, 60)),
-    ))
-    lines.append(Text.assemble(
-        ("Disk ", BODY), (bar(disk.percent, 24), threshold_color(disk.percent)),
-        (f" {disk.percent:>3.0f}%", threshold_color(disk.percent)),
-        (f"  {disk.used/1e9:.1f}/{disk.total/1e9:.0f}G", BODY),
-    ))
-    lines.append(Text.assemble(
-        ("Net  ", BLUE), (hist_bar(_net_hist), CYAN),
-        (f"  down {down_delta/1024:>5.1f}K  up {up_delta/1024:>5.1f}K", BLUE),
-    ))
+    stat_lines = [
+        Text(f"{get_os_release()}", style=DEBIAN_RED),
+        Text.assemble(
+            ("Up ", CYAN), (f"{h}h{m:02d}m", BODY),
+            ("   Pkgs ", CYAN), (f"{get_pkg_count()}", BODY),
+        ),
+        Text.assemble(
+            (f"CPU {core_str}  ", threshold_color(max(per_cpu, default=0))),
+            (f"Ld {load1:.2f}", CYAN),
+        ),
+        Text.assemble(
+            ("Mem ", BODY), (bar(mem.percent, 14), threshold_color(mem.percent)),
+            (f" {mem.percent:>3.0f}%", threshold_color(mem.percent)),
+            ("  Swap ", BODY), (bar(swap.percent, 8), threshold_color(swap.percent, 20, 60)),
+            (f" {swap.percent:>3.0f}%", threshold_color(swap.percent, 20, 60)),
+        ),
+        Text.assemble(
+            ("Disk ", BODY), (bar(disk.percent, 24), threshold_color(disk.percent)),
+            (f" {disk.percent:>3.0f}%", threshold_color(disk.percent)),
+            (f"  {disk.used/1e9:.1f}/{disk.total/1e9:.0f}G", BODY),
+        ),
+        Text.assemble(
+            ("Net  ", BLUE), (hist_bar(_net_hist), CYAN),
+            (f"  down {down_delta/1024:>5.1f}K  up {up_delta/1024:>5.1f}K", BLUE),
+        ),
+    ]
+
+    # Statystyki + mala malina obok, w tym samym zestawie wierszy (bez kosztu
+    # dodatkowych wierszy - wykorzystuje tylko wolne miejsce w poziomie).
+    stats_grid = Table.grid(expand=True, padding=(0, 1))
+    stats_grid.add_column(ratio=1)
+    stats_grid.add_column(width=8)
+    for i, stat_line in enumerate(stat_lines):
+        icon_text, icon_style = RASPBERRY_ART[i] if i < len(RASPBERRY_ART) else ("", "")
+        stats_grid.add_row(stat_line, Text(icon_text, style=icon_style))
+    lines.append(stats_grid)
 
     lines.append(Rule(style=DIM_GREEN))
     lines.append(Text(" DOCKER", style=MAGENTA))
