@@ -9,12 +9,16 @@ import os
 import re
 import subprocess
 import time
+from collections import deque
 from datetime import datetime
 
 from rich.console import Console, Group
 from rich.text import Text
 from rich.rule import Rule
+from rich.panel import Panel
 from rich.live import Live
+from rich.align import Align
+from rich import box
 
 import psutil
 
@@ -52,6 +56,18 @@ YELLOW = "bold yellow"
 MAGENTA = "bold magenta"
 BLUE = "bold blue"
 
+# Uwaga na znaki: fbcon na tym ekranie renderuje klasyczny font VGA/codepage-437,
+# nie pelny Unicode jak terminal pod SSH. Trzymamy sie wylacznie glifow z CP437
+# (blok pelny/cien: " ░▒▓█", pojedyncza ramka "─│┌┐└┘", punktor "•") - inaczej
+# nie-CP437 znaki (np. osemkowe bloki sparkline'ow ▁▂▃▄▅▆▇) wyjda jako puste pola.
+HIST_CHARS = " ░▒▓█"
+
+
+def hist_bar(values):
+    vmax = max(values) or 1
+    idx_max = len(HIST_CHARS) - 1
+    return "".join(HIST_CHARS[min(int((v / vmax) * idx_max), idx_max)] for v in values)
+
 
 def threshold_color(pct, low=40, high=75):
     """Zielony ponizej low, zolty do high, czerwony powyzej."""
@@ -65,6 +81,14 @@ def threshold_color(pct, low=40, high=75):
 def bar(pct, width=10, filled_char="|", empty_char="-"):
     filled = int((pct / 100) * width)
     return "[" + filled_char * filled + empty_char * (width - filled) + "]"
+
+
+def color_swatch_row():
+    blocks = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+    t = Text()
+    for c in blocks:
+        t.append("███", style=c)
+    return Align.center(t)
 
 
 def run(cmd):
@@ -94,10 +118,11 @@ def get_pkg_count():
 
 
 _last_net = psutil.net_io_counters()
+_net_hist = deque([0] * 20, maxlen=20)
 
 
 def build_frame():
-    """Caly ekran to jeden gesty widok - 60x20 nie ma miejsca na wiele paneli."""
+    """Caly ekran to jeden gesty widok w ramce - 60x20 nie ma miejsca na wiele paneli."""
     global _last_net
 
     hostname = os.uname().nodename
@@ -116,6 +141,7 @@ def build_frame():
     down_delta = max(net_now.bytes_recv - _last_net.bytes_recv, 0)
     up_delta = max(net_now.bytes_sent - _last_net.bytes_sent, 0)
     _last_net = net_now
+    _net_hist.append(down_delta + up_delta)
 
     lines = []
 
@@ -138,30 +164,40 @@ def build_frame():
     ))
 
     lines.append(Text.assemble(
-        ("Mem  ", BODY), (bar(mem.percent, 10), threshold_color(mem.percent)),
+        ("Mem  ", BODY), (bar(mem.percent, 24), threshold_color(mem.percent)),
         (f" {mem.percent:>3.0f}%", threshold_color(mem.percent)),
-        ("  Swap ", BODY), (bar(swap.percent, 6), threshold_color(swap.percent, 20, 60)),
+    ))
+    lines.append(Text.assemble(
+        ("Swap ", BODY), (bar(swap.percent, 24), threshold_color(swap.percent, 20, 60)),
         (f" {swap.percent:>3.0f}%", threshold_color(swap.percent, 20, 60)),
     ))
     lines.append(Text.assemble(
-        ("Disk ", BODY), (bar(disk.percent, 10), threshold_color(disk.percent)),
+        ("Disk ", BODY), (bar(disk.percent, 24), threshold_color(disk.percent)),
         (f" {disk.percent:>3.0f}%", threshold_color(disk.percent)),
-        (f"  {disk.used/1e9:.1f}/{disk.total/1e9:.0f}G", BODY),
     ))
-    lines.append(Text(
-        f"Net  down {down_delta/1024:>5.1f}K/s  up {up_delta/1024:>5.1f}K/s",
-        style=BLUE,
+    lines.append(Text.assemble(
+        ("Net  ", BLUE), (hist_bar(_net_hist), CYAN),
+        (f"  down {down_delta/1024:>5.1f}K  up {up_delta/1024:>5.1f}K", BLUE),
     ))
 
     lines.append(Rule(style=DIM_GREEN))
+    lines.append(color_swatch_row())
     lines.append(Text(" MESH", style=MAGENTA))
     for host in (THINKCENTRE_HOST, ORANGEPI_HOST, YOGA_HOST):
         text, style = check_host(host)
-        row = Text(f" {host:<13}", style=BLUE)
+        row = Text(" • ", style=style)
+        row.append(f"{host:<13}", style=BLUE)
         row.append(text, style=style)
         lines.append(row)
 
-    return Group(*lines)
+    return Panel(
+        Group(*lines),
+        box=box.SQUARE,
+        border_style=DIM_GREEN,
+        title="QTECHCORE // RPI4",
+        title_align="center",
+        padding=(0, 1),
+    )
 
 
 def main():
