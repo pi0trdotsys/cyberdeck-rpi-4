@@ -24,16 +24,28 @@ To repo to fork-w-trakcie [`yoga11e-cyberdeck`](https://github.com/pi0trdotsys/c
 adaptowany pod Raspberry Pi 4 z **ekranem dotykowym SPI 3.5" 480×320** zamiast panelu laptopa.
 
 Co jest zrobione:
-- Podstawowy system wgrany przez Raspberry Pi Imager (SSH + WiFi + hostname skonfigurowane)
-- `dashboard.py` skopiowany, z poprawionymi ewidentnie błędnymi etykietami sprzętu (był
-  zahardkodowany na Yogę 11e)
+- Podstawowy system wgrany przez Raspberry Pi Imager (SSH + WiFi + hostname skonfigurowane),
+  działa Raspberry Pi OS / Debian 13 (trixie)
+- Ekran dotykowy SPI (MPI3501 / overlay `tft35a`) potwierdzony jako działający: dopisane
+  `dtparam=spi=on` + `dtoverlay=tft35a:rotate=90` do `/boot/firmware/config.txt` (istniejący
+  config zachowany, nie nadpisany — patrz notka niżej jeśli sam używasz `goodtft/LCD-show`),
+  konsola zmapowana na framebuffer panelu przez `fbcon=map:10`, font wymuszony na VGA 8x16 przez
+  `fbcon=font:VGA8x16` w `cmdline.txt` dla czytelnej siatki **60×20** znaków
+- `dashboard.py` przepisany pod siatkę 60×20: jeden gęsty widok (header, OS/kernel/uptime,
+  CPU per-rdzeń, load, mem/swap, dysk, sieć, status mesh Tailscale). Panele top procesów,
+  shortcuts/quick-commands/recent-commands oraz ASCII logo zostały wycięte — brak na nie miejsca
+  przy tym rozmiarze
 
 Co **nie** jest jeszcze zrobione:
-- Sterownik/overlay ekranu dotykowego SPI nie jest skonfigurowany
-- Layout dashboardu wciąż jest zaprojektowany pod pełny terminal (~130×37 znaków). **Nie** został
-  przeprojektowany pod ~60×20 znaków, które faktycznie mieszczą się na panelu 480×320 — będzie
-  wyglądał źle/ciasno na małym ekranie, dopóki to się nie zmieni
-- Brak zrzutów ekranu — nic jeszcze nie działało na docelowym sprzęcie
+- Przepisany `dashboard.py` nie został jeszcze zweryfikowany wizualnie end-to-end na faktycznym
+  urządzeniu (ekran/font/overlay zweryfikowane niezależnie od finalnego renderu dashboardu)
+- Brak zrzutów ekranu
+
+> **Jeśli adaptujesz inny generyczny panel 3.5" SPI przez `goodtft/LCD-show`:** nie uruchamiaj
+> skryptu instalacyjnego wprost na Bookwormie/Trixie. Podmienia on cały `config.txt` swoim
+> bundlowanym, starym szablonem zamiast dopisywać do Twojego — na tym sprzęcie skasowałoby to
+> `arm_64bit=1`, `dtoverlay=vc4-kms-v3d` i inne ustawienia już obecne. Zamiast tego wyciągnij sam
+> plik overlay (`usr/<nazwa>-overlay.dtb`) i dopisz ręcznie dwie-trzy istotne linijki.
 
 Traktuj poniższą treść jako plan, nie gotową konfigurację, dopóki powyższe nie zostanie odhaczone.
 

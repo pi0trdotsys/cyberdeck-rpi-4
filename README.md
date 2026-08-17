@@ -24,16 +24,29 @@ This repo is a fork-in-progress of [`yoga11e-cyberdeck`](https://github.com/pi0t
 adapted for a Raspberry Pi 4 driving a **3.5" 480×320 SPI touchscreen** instead of a laptop panel.
 
 What's done:
-- Base OS flashed via Raspberry Pi Imager (SSH + WiFi + hostname preconfigured)
-- `dashboard.py` copied over with the obviously-wrong hardware labels fixed (was hardcoded to
-  the Yoga 11e)
+- Base OS flashed via Raspberry Pi Imager (SSH + WiFi + hostname preconfigured), running
+  Raspberry Pi OS / Debian 13 (trixie)
+- SPI touchscreen (MPI3501 / `tft35a` overlay) confirmed working: `dtparam=spi=on` +
+  `dtoverlay=tft35a:rotate=90` appended to `/boot/firmware/config.txt` (existing config preserved,
+  not overwritten — see note below if you're using `goodtft/LCD-show` yourself), console mapped
+  onto the panel's framebuffer via `fbcon=map:10`, font forced to VGA 8x16 via
+  `fbcon=font:VGA8x16` in `cmdline.txt` for a readable **60×20** character grid
+- `dashboard.py` rewritten for the 60×20 grid: single dense view (header, OS/kernel/uptime,
+  per-core CPU, load, mem/swap, disk, network, Tailscale mesh status). Top processes,
+  shortcuts/quick-commands/recent-commands panels and the ASCII logo were dropped — no room for
+  them at this size
 
 What's **not** done yet:
-- The SPI touchscreen driver/overlay is not configured
-- The dashboard layout is still sized for a full terminal (~130×37 chars). It has **not** been
-  redesigned for the ~60×20 chars a 480×320 panel actually fits — it will look wrong/cramped on
-  the small screen until that pass happens
-- No screenshots yet — nothing has run on the actual target hardware
+- The rewritten `dashboard.py` hasn't been visually verified end-to-end on the actual device yet
+  (screen/font/overlay were verified independently of the final dashboard render)
+- No screenshots yet
+
+> **If you're adapting a different generic 3.5" SPI panel via `goodtft/LCD-show`:** don't run the
+> install script as-is on Bookworm/Trixie. It replaces the entire `config.txt` with its own
+> bundled legacy template rather than appending to yours — on this hardware that would have
+> dropped `arm_64bit=1`, `dtoverlay=vc4-kms-v3d`, and other settings already in place. Pull just
+> the overlay blob (`usr/<name>-overlay.dtb`) and append the two or three relevant lines by hand
+> instead.
 
 Track progress before relying on anything below as a finished setup.
 
