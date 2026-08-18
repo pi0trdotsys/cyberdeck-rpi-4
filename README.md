@@ -31,10 +31,13 @@ What's done:
   not overwritten — see note below if you're using `goodtft/LCD-show` yourself), console mapped
   onto the panel's framebuffer via `fbcon=map:10`, font forced to VGA 8x16 via
   `fbcon=font:VGA8x16` in `cmdline.txt` for a readable **60×20** character grid
-- `dashboard.py` rewritten for the 60×20 grid: single dense view (header, OS/kernel/uptime,
-  per-core CPU, load, mem/swap, disk, network, Tailscale mesh status). Top processes,
-  shortcuts/quick-commands/recent-commands panels and the ASCII logo were dropped — no room for
-  them at this size
+- `dashboard.py` rewritten for the 60×20 grid as **three auto-rotating pages** (6s each):
+  **SYSTEM** (big CPU% readout + pixel-art raspberry, cores, temp, mem/swap/disk),
+  **DOCKER** (running-container count + container list), **NET** (downlink rate, throughput
+  history, Tailscale mesh reachability, LAN/TS addresses). Headline metric on each page is drawn
+  with 5-row block digits — bigger glyphs without shrinking the usable grid
+- tmux status bar turned **off** in `tmux.conf`: it reserved a row, leaving only 60×19, which
+  silently cut the dashboard's last line
 
 What's **not** done yet:
 - The rewritten `dashboard.py` hasn't been visually verified end-to-end on the actual device yet

@@ -31,10 +31,13 @@ Co jest zrobione:
   config zachowany, nie nadpisany — patrz notka niżej jeśli sam używasz `goodtft/LCD-show`),
   konsola zmapowana na framebuffer panelu przez `fbcon=map:10`, font wymuszony na VGA 8x16 przez
   `fbcon=font:VGA8x16` w `cmdline.txt` dla czytelnej siatki **60×20** znaków
-- `dashboard.py` przepisany pod siatkę 60×20: jeden gęsty widok (header, OS/kernel/uptime,
-  CPU per-rdzeń, load, mem/swap, dysk, sieć, status mesh Tailscale). Panele top procesów,
-  shortcuts/quick-commands/recent-commands oraz ASCII logo zostały wycięte — brak na nie miejsca
-  przy tym rozmiarze
+- `dashboard.py` przepisany pod siatkę 60×20 jako **trzy automatycznie przełączane strony**
+  (co 6s): **SYSTEM** (duży odczyt CPU% + pixel-artowa malinka, rdzenie, temperatura,
+  mem/swap/dysk), **DOCKER** (licznik działających kontenerów + lista), **NET** (downlink,
+  historia ruchu, dostępność hostów Tailscale, adresy LAN/TS). Kluczowa metryka każdej strony
+  rysowana cyframi blokowymi wysokimi na 5 wierszy — większe znaki bez zmniejszania siatki
+- pasek statusu tmux **wyłączony** w `tmux.conf`: zabierał wiersz, zostawiając tylko 60×19,
+  przez co ostatnia linia dashboardu była po cichu ucinana
 
 Co **nie** jest jeszcze zrobione:
 - Przepisany `dashboard.py` nie został jeszcze zweryfikowany wizualnie end-to-end na faktycznym
