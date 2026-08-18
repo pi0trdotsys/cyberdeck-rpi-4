@@ -59,18 +59,41 @@ DIM = "dim green"
 # wykres znika i wyglada jak zepsuty zamiast jak plaska linia bazowa.
 HIST_CHARS = "░▒▓█"
 
-# Malinka 11x8 - polbloki ▀▄ podwajaja efektywna rozdzielczosc w pionie, dzieki
-# czemu ksztalt (dwa listki + jagoda) jest czytelny mimo malego rozmiaru.
-RASPBERRY = [
-    ("  ▄▄   ▄▄  ", "bold green"),
-    ("  ▀█▄ ▄█▀  ", "bold green"),
-    ("    ▀█▀    ", "green"),
-    ("  ▄█████▄  ", "red"),
-    (" █████████ ", "bold red"),
-    ("███████████", "bold red"),
-    (" █████████ ", "bold red"),
-    ("  ▀█████▀  ", "red"),
+# Malinka 13x10. Poprzednia wersja (gladka kula + szypulka) czytala sie jako
+# WISNIA - malina to owoc zbiorowy, wiec o rozpoznawalnosci decyduja widoczne
+# pestkowce i ksztalt naparstkowy (szeroka gora, zwezajacy sie dol), a nie sama
+# czerwien. Stad wzor dwutonowy: '#' to jasny pestkowiec, '.' to ciemniejszy
+# szew miedzy nimi, a kolejne rzedy sa przesuniete wzgledem siebie.
+RASPBERRY_PATTERN = [
+    ("  \u2584\u2588\u2584   \u2584\u2588\u2584  ", True),
+    ("  \u2580\u2588\u2588\u2584 \u2584\u2588\u2588\u2580  ", True),
+    ("     \u2580\u2588\u2580     ", True),
+    (" ##.##.##.## ", False),
+    ("##.##.##.##.#", False),
+    ("  ##.##.##.##", False),
+    (" ##.##.##.## ", False),
+    ("  #.##.##.#  ", False),
+    ("   ##.##.##  ", False),
+    ("    \u2580###\u2580    ", False),
 ]
+
+
+def raspberry_row(idx):
+    """Buduje jeden wiersz malinki jako Text z kolorowaniem per-znak."""
+    pattern, leaf = RASPBERRY_PATTERN[idx]
+    bright = "bold green" if leaf else "bold red"
+    row = Text()
+    for ch in pattern:
+        if ch == " ":
+            row.append(" ")
+        elif ch == "#":
+            row.append("\u2588", style=bright)
+        elif ch == ".":
+            row.append("\u2591", style="red")  # szew miedzy pestkowcami
+        else:
+            row.append(ch, style=bright)
+    return row
+
 
 # Cyfry blokowe 3x5 - naglowkowa metryka kazdej strony.
 BIG_GLYPHS = {
@@ -129,12 +152,12 @@ def big_lines(s, style, indent=" "):
     return [Text(r, style=style) for r in rows]
 
 
-def compose(left, art_text, art_style, left_width=44):
+def compose(left, art, left_width=43):
     """Skleja wiersz tresci z kolumna art-u po prawej - jeden Text, jeden wiersz.
     Dzieki temu budzet wierszy da sie liczyc wprost (patrz CONTENT_ROWS)."""
     row = left.copy()
     row.truncate(left_width, pad=True)
-    row.append(art_text, style=art_style)
+    row.append_text(art)
     return row
 
 
@@ -248,19 +271,20 @@ def page_system():
 
     # Lewa kolumna: 8 wierszy zestawionych 1:1 z 8 wierszami malinki.
     left = [
+        Text(""),
         Text("  CPU LOAD", style=DIM_GREEN),
         *big_lines(f"{cpu_avg:.0f}%", threshold_color(cpu_avg), indent="  "),
         Text(""),
         Text.assemble(("  Ld ", DIM_GREEN), (f"{load1:.2f}", GREEN),
                       ("   Temp ", DIM_GREEN),
                       (temp_str, threshold_color(temp or 0, 60, 75))),
+        Text(""),
     ]
 
     rows = []
-    for i in range(8):
+    for i in range(len(RASPBERRY_PATTERN)):
         cell = left[i] if i < len(left) else Text("")
-        art_text, art_style = RASPBERRY[i]
-        rows.append(compose(cell, art_text, art_style))
+        rows.append(compose(cell, raspberry_row(i)))
 
     # Rdzenie: tylko 4 na Pi 4, ale ograniczamy jawnie - na maszynie z 8+
     # rdzeniami linia inaczej zawijala sie na nastepny wiersz.
