@@ -73,15 +73,16 @@ def hist_bar(values):
 
 
 # Mala pixel-artowa malina (oryginalna, uproszczona grafika blokowa - nie kopia
-# logo Raspberry Pi) - listek + jagoda, wylacznie znak "█" z CP437, kolorowany.
-# 6 wierszy, zeby zestawic 1:1 z 6 liniami statystyk obok (bez kosztu wierszy).
+# logo Raspberry Pi) - geometryczny, "faasetowany" ksztalt zamiast bezksztaltnej
+# plamki, wylacznie znaki CP437 ("█"/"▓"). 6 wierszy, zeby zestawic 1:1 z 6
+# liniami statystyk obok (bez kosztu wierszy).
 RASPBERRY_ART = [
-    (" ▓▓  ▓▓ ", "green"),
-    (" ██████ ", "green"),
-    ("██  ██  ", "bold red"),
-    ("████████", "red"),
-    (" ██  ██ ", "bold red"),
-    ("████████", "red"),
+    ("  ▓▓  ", "green"),
+    (" ▓▓▓▓ ", "green"),
+    (" ████ ", "red"),
+    ("██████", "bold red"),
+    ("██████", "bold red"),
+    (" ████ ", "red"),
 ]
 
 
@@ -213,13 +214,13 @@ def build_frame():
             (f"Ld {load1:.2f}", CYAN),
         ),
         Text.assemble(
-            ("Mem ", BODY), (bar(mem.percent, 14), threshold_color(mem.percent)),
+            ("Mem ", BODY), (bar(mem.percent, 12), threshold_color(mem.percent)),
             (f" {mem.percent:>3.0f}%", threshold_color(mem.percent)),
             ("  Swap ", BODY), (bar(swap.percent, 8), threshold_color(swap.percent, 20, 60)),
             (f" {swap.percent:>3.0f}%", threshold_color(swap.percent, 20, 60)),
         ),
         Text.assemble(
-            ("Disk ", BODY), (bar(disk.percent, 24), threshold_color(disk.percent)),
+            ("Disk ", BODY), (bar(disk.percent, 20), threshold_color(disk.percent)),
             (f" {disk.percent:>3.0f}%", threshold_color(disk.percent)),
             (f"  {disk.used/1e9:.1f}/{disk.total/1e9:.0f}G", BODY),
         ),
@@ -233,7 +234,7 @@ def build_frame():
     # dodatkowych wierszy - wykorzystuje tylko wolne miejsce w poziomie).
     stats_grid = Table.grid(expand=True, padding=(0, 1))
     stats_grid.add_column(ratio=1)
-    stats_grid.add_column(width=8)
+    stats_grid.add_column(width=6)
     for i, stat_line in enumerate(stat_lines):
         icon_text, icon_style = RASPBERRY_ART[i] if i < len(RASPBERRY_ART) else ("", "")
         stats_grid.add_row(stat_line, Text(icon_text, style=icon_style))
